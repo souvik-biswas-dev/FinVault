@@ -246,6 +246,55 @@ classDiagram
 
 ---
 
+### Sequence Diagrams
+
+#### User Registration
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant VM as ValidationMiddleware
+    participant AC as AuthController
+    participant DB as MongoDB (User)
+    participant ES as EmailService
+
+    C->>VM: POST /api/auth/register {email, name, password}
+    VM-->>C: 400 Validation Error (if invalid)
+    VM->>AC: next()
+    AC->>DB: findOne({email})
+    DB-->>AC: null | User
+    AC-->>C: 409 User already exists (if found)
+    AC->>DB: create({email, name, password})
+    Note over DB: pre-save hook hashes password (bcrypt)
+    DB-->>AC: User document
+    AC->>AC: jwt.sign({userId})
+    AC-->>C: 201 {user, token} + Set-Cookie: token (httpOnly)
+    AC--)ES: sendRegisterEmail() [fire & forget]
+```
+
+#### User Login
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant VM as ValidationMiddleware
+    participant AC as AuthController
+    participant DB as MongoDB (User)
+
+    C->>VM: POST /api/auth/login {email, password}
+    VM-->>C: 400 Validation Error (if invalid)
+    VM->>AC: next()
+    AC->>DB: findOne({email}).select("+password")
+    DB-->>AC: null | User
+    AC-->>C: 401 Incorrect email or password (if null)
+    AC->>AC: user.comparePassword(password)
+    AC-->>C: 401 Incorrect email or password (if mismatch)
+    AC->>AC: jwt.sign({userId})
+    AC-->>C: 200 {user, token} + Set-Cookie: token (httpOnly)
+```
+
+---
+
 ## License
 
 MIT
