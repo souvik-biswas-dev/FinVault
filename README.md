@@ -255,7 +255,7 @@ sequenceDiagram
     participant C as Client
     participant VM as ValidationMiddleware
     participant AC as AuthController
-    participant DB as MongoDB (User)
+    participant DB as MongoDB-User
     participant ES as EmailService
 
     C->>VM: POST /api/auth/register {email, name, password}
@@ -279,7 +279,7 @@ sequenceDiagram
     participant C as Client
     participant VM as ValidationMiddleware
     participant AC as AuthController
-    participant DB as MongoDB (User)
+    participant DB as MongoDB-User
 
     C->>VM: POST /api/auth/login {email, password}
     VM-->>C: 400 Validation Error (if invalid)
