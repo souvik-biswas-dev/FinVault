@@ -293,6 +293,58 @@ sequenceDiagram
     AC-->>C: 200 {user, token} + Set-Cookie: token (httpOnly)
 ```
 
+#### Create Transaction (Transfer)
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant AM as AuthMiddleware
+    participant VM as ValidationMiddleware
+    participant TC as TransactionController
+    participant ADB as MongoDB (Account)
+    participant TDB as MongoDB (Transaction)
+    participant LDB as MongoDB (Ledger)
+    participant ES as EmailService
+
+    C->>AM: POST /api/transactions {fromAccount, toAccount, amount, idempotencyKey}
+    AM->>ADB: findById(userId from JWT)
+    ADB-->>AM: User document
+    AM-->>C: 401 Unauthorized (if no valid JWT)
+    AM->>TC: next()
+
+    TC->>ADB: findById(fromAccount) + findById(toAccount) [parallel]
+    ADB-->>TC: fromUserAccount, toUserAccount
+    TC-->>C: 404 Account not found (if missing)
+    TC-->>C: 403 Forbidden (if fromAccount not owned by user)
+
+    TC->>TDB: findOne({idempotencyKey})
+    TDB-->>TC: null | existingTransaction
+    TC-->>C: 200/202/409 (if duplicate key found)
+
+    TC-->>C: 400 Accounts must be ACTIVE (if status check fails)
+    TC-->>C: 400 Cross-currency not supported (if currency mismatch)
+
+    TC->>ADB: fromUserAccount.getBalance() [ledger aggregate]
+    ADB-->>TC: balance
+    TC-->>C: 400 Insufficient balance (if balance < amount)
+
+    TC->>TDB: create({fromAccount, toAccount, amount, status: PENDING, idempotencyKey})
+    TDB-->>TC: Transaction (PENDING)
+
+    TC->>LDB: create({account: fromAccount, type: DEBIT, amount, transaction})
+    TC->>LDB: create({account: toAccount, type: CREDIT, amount, transaction})
+
+    alt Ledger writes succeed
+        TC->>TDB: transaction.status = COMPLETED; save()
+        TC-->>C: 201 {transaction: COMPLETED}
+        TC--)ES: sendTransactionEmail() [fire & forget]
+    else Ledger write fails
+        TC->>TDB: findOneAndUpdate({status: PENDING} → FAILED)
+        TC--)ES: sendTransactionFailureEmail() [fire & forget]
+        TC-->>C: 500 Internal Server Error
+    end
+```
+
 ---
 
 ## License
