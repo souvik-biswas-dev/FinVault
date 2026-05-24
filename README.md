@@ -301,46 +301,46 @@ sequenceDiagram
     participant AM as AuthMiddleware
     participant VM as ValidationMiddleware
     participant TC as TransactionController
-    participant ADB as MongoDB (Account)
-    participant TDB as MongoDB (Transaction)
-    participant LDB as MongoDB (Ledger)
+    participant ADB as MongoDB-Account
+    participant TDB as MongoDB-Transaction
+    participant LDB as MongoDB-Ledger
     participant ES as EmailService
 
-    C->>AM: POST /api/transactions {fromAccount, toAccount, amount, idempotencyKey}
-    AM->>ADB: findById(userId from JWT)
+    C->>AM: POST /api/transactions - fromAccount, toAccount, amount, idempotencyKey
+    AM->>ADB: findById userId from JWT
     ADB-->>AM: User document
-    AM-->>C: 401 Unauthorized (if no valid JWT)
+    AM-->>C: 401 Unauthorized if no valid JWT
     AM->>TC: next()
 
-    TC->>ADB: findById(fromAccount) + findById(toAccount) [parallel]
+    TC->>ADB: findById fromAccount and findById toAccount in parallel
     ADB-->>TC: fromUserAccount, toUserAccount
-    TC-->>C: 404 Account not found (if missing)
-    TC-->>C: 403 Forbidden (if fromAccount not owned by user)
+    TC-->>C: 404 Account not found if missing
+    TC-->>C: 403 Forbidden if fromAccount not owned by user
 
-    TC->>TDB: findOne({idempotencyKey})
-    TDB-->>TC: null | existingTransaction
-    TC-->>C: 200/202/409 (if duplicate key found)
+    TC->>TDB: findOne by idempotencyKey
+    TDB-->>TC: null or existingTransaction
+    TC-->>C: 200/202/409 if duplicate key found
 
-    TC-->>C: 400 Accounts must be ACTIVE (if status check fails)
-    TC-->>C: 400 Cross-currency not supported (if currency mismatch)
+    TC-->>C: 400 Accounts must be ACTIVE if status check fails
+    TC-->>C: 400 Cross-currency not supported if currency mismatch
 
-    TC->>ADB: fromUserAccount.getBalance() [ledger aggregate]
+    TC->>ADB: fromUserAccount.getBalance via ledger aggregate
     ADB-->>TC: balance
-    TC-->>C: 400 Insufficient balance (if balance < amount)
+    TC-->>C: 400 Insufficient balance if balance less than amount
 
-    TC->>TDB: create({fromAccount, toAccount, amount, status: PENDING, idempotencyKey})
-    TDB-->>TC: Transaction (PENDING)
+    TC->>TDB: create transaction with status PENDING
+    TDB-->>TC: Transaction PENDING
 
-    TC->>LDB: create({account: fromAccount, type: DEBIT, amount, transaction})
-    TC->>LDB: create({account: toAccount, type: CREDIT, amount, transaction})
+    TC->>LDB: create DEBIT entry for fromAccount
+    TC->>LDB: create CREDIT entry for toAccount
 
     alt Ledger writes succeed
-        TC->>TDB: transaction.status = COMPLETED; save()
-        TC-->>C: 201 {transaction: COMPLETED}
-        TC--)ES: sendTransactionEmail() [fire & forget]
+        TC->>TDB: update transaction status to COMPLETED
+        TC-->>C: 201 transaction COMPLETED
+        TC--)ES: sendTransactionEmail fire and forget
     else Ledger write fails
-        TC->>TDB: findOneAndUpdate({status: PENDING} → FAILED)
-        TC--)ES: sendTransactionFailureEmail() [fire & forget]
+        TC->>TDB: findOneAndUpdate status PENDING to FAILED
+        TC--)ES: sendTransactionFailureEmail fire and forget
         TC-->>C: 500 Internal Server Error
     end
 ```
