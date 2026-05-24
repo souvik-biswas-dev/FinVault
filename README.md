@@ -345,6 +345,28 @@ sequenceDiagram
     end
 ```
 
+#### Get Account Balance
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant AM as AuthMiddleware
+    participant AC as AccountController
+    participant ADB as MongoDB (Account)
+    participant LDB as MongoDB (Ledger)
+
+    C->>AM: GET /api/accounts/:id
+    AM-->>C: 401 Unauthorized (if no valid JWT)
+    AM->>AC: next()
+    AC->>ADB: findById(id)
+    ADB-->>AC: Account | null
+    AC-->>C: 404 Not found (if null)
+    AC-->>C: 403 Forbidden (if account.user ≠ req.user._id)
+    AC->>LDB: aggregate([match account, group DEBIT/CREDIT, project balance])
+    LDB-->>AC: {balance}
+    AC-->>C: 200 {account, balance}
+```
+
 ---
 
 ## License
