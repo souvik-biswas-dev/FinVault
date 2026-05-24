@@ -135,6 +135,117 @@ EMAIL_FROM=FinVault <no-reply@finvault.app>
 
 ---
 
+## Low-Level Design
+
+### Class Diagram
+
+```mermaid
+classDiagram
+    class User {
+        +ObjectId _id
+        +String email
+        +String name
+        -String password
+        -Boolean systemUser
+        +Date createdAt
+        +Date updatedAt
+        +comparePassword(password) Boolean
+        ~pre_save_hashPassword()
+    }
+
+    class Account {
+        +ObjectId _id
+        +ObjectId user
+        +String status
+        +String currency
+        +Date createdAt
+        +Date updatedAt
+        +getBalance() Number
+    }
+
+    class Transaction {
+        +ObjectId _id
+        +String type
+        +ObjectId fromAccount
+        +ObjectId toAccount
+        +String status
+        +Number amount
+        +String idempotencyKey
+        +Date createdAt
+        +Date updatedAt
+    }
+
+    class LedgerEntry {
+        +ObjectId _id
+        +ObjectId account
+        +Number amount
+        +ObjectId transaction
+        +String type
+        ~pre_update_prevent()
+        ~pre_delete_prevent()
+    }
+
+    class AuthController {
+        +userRegisterController(req, res)
+        +userLoginController(req, res)
+        +userLogoutController(req, res)
+        +getMeController(req, res)
+    }
+
+    class AccountController {
+        +createAccountController(req, res)
+        +getAccountsController(req, res)
+        +getAccountByIdController(req, res)
+    }
+
+    class TransactionController {
+        +createTransactionController(req, res)
+        +getTransactionsController(req, res)
+        +getTransactionByIdController(req, res)
+    }
+
+    class AuthMiddleware {
+        +protect(req, res, next)
+    }
+
+    class ValidationMiddleware {
+        +validateRegister(req, res, next)
+        +validateLogin(req, res, next)
+        +validateTransaction(req, res, next)
+    }
+
+    class ErrorMiddleware {
+        +globalErrorHandler(err, req, res, next)
+    }
+
+    class EmailService {
+        +sendRegisterEmail(email, name)
+        +sendTransactionEmail(email, name, amount, txnId)
+        +sendTransactionFailureEmail(email, name, amount, key)
+    }
+
+    User "1" --> "many" Account : owns
+    Account "1" --> "many" LedgerEntry : has
+    Transaction "1" --> "2" LedgerEntry : generates
+    Transaction "many" --> "1" Account : fromAccount
+    Transaction "many" --> "1" Account : toAccount
+
+    AuthController ..> User : creates / queries
+    AuthController ..> EmailService : sends welcome email
+    AccountController ..> Account : CRUD
+    TransactionController ..> Transaction : CRUD
+    TransactionController ..> LedgerEntry : creates entries
+    TransactionController ..> Account : checks balance / status
+    TransactionController ..> EmailService : sends notifications
+
+    AuthMiddleware ..> User : verifies JWT
+    AuthController ..> AuthMiddleware : protected routes
+    AccountController ..> AuthMiddleware : protected routes
+    TransactionController ..> AuthMiddleware : protected routes
+```
+
+---
+
 ## License
 
 MIT
