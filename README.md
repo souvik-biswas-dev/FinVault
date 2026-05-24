@@ -352,8 +352,8 @@ sequenceDiagram
     participant C as Client
     participant AM as AuthMiddleware
     participant AC as AccountController
-    participant ADB as MongoDB (Account)
-    participant LDB as MongoDB (Ledger)
+    participant ADB as MongoDB-Account
+    participant LDB as MongoDB-Ledger
 
     C->>AM: GET /api/accounts/:id
     AM-->>C: 401 Unauthorized (if no valid JWT)
